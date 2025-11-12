@@ -1,66 +1,129 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# ---------------------------------
+# Catatan Setup Backend (todome_backend)
+# ---------------------------------
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Ini adalah project REST API Laravel untuk aplikasi mobile ToDoMe.
+API ini mengelola user, tasks, categories, dan menyediakan data statistik.
 
-## About Laravel
+## 1. Persyaratan Environment (Wajib)
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+Pastikan environment Laragon Anda memenuhi syarat berikut:
+* **PHP:** Versi `8.2` atau lebih tinggi.
+* **Database:** MySQL (Bawaan Laragon).
+* **Composer:** Terinstal (Bawaan Laragon).
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## 2. Langkah Instalasi (untuk Tim)
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+Langkah-langkah ini untuk siapa saja yang baru bergabung dan ingin menjalankan project di komputer mereka.
 
-## Learning Laravel
+1.  **Clone Repository:**
+    ```bash
+    git clone [https://github.com/SeptianTito123/todome_backend.git](https://github.com/SeptianTito123/todome_backend.git)
+    cd todome_backend
+    ```
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+2.  **Buat Database:**
+    * Buka Laragon -> Database.
+    * Buat database MySQL baru dengan nama `todome_db`.
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+3.  **Setup File .env:**
+    * Salin file `.env.example` menjadi `.env`:
+        ```bash
+        cp .env.example .env
+        ```
+    * Edit file `.env` dan sesuaikan pengaturan database:
+        ```
+        DB_DATABASE=todome_db
+        DB_USERNAME=root
+        DB_PASSWORD=
+        ```
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+4.  **Install Dependencies (Composer):**
+    ```bash
+    # Catatan: Menginstal semua dependensi dari composer.lock
+    composer install
+    ```
 
-## Laravel Sponsors
+5.  **Hasilkan Kunci Aplikasi (Generate Key):**
+    ```bash
+    php artisan key:generate
+    ```
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+6.  **Jalankan Migrasi Database:**
+    * Perintah ini akan membuat SEMUA tabel yang diperlukan:
+    * `users` (bawaan)
+    * `personal_access_tokens` (dari Sanctum)
+    * `tasks` (dengan relasi user)
+    * `categories` (dengan relasi user)
+    * `category_task` (tabel pivot many-to-many)
+    ```bash
+    # Catatan: Menjalankan semua file migrasi
+    php artisan migrate
+    ```
 
-### Premium Partners
+7.  **Jalankan Server:**
+    ```bash
+    php artisan serve
+    ```
+    API sekarang berjalan di `http://127.0.0.1:8000`.
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[WebReinvent](https://webreinvent.com/)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Jump24](https://jump24.co.uk)**
-- **[Redberry](https://redberry.international/laravel/)**
-- **[Active Logic](https://activelogic.com)**
-- **[byte5](https://byte5.de)**
-- **[OP.GG](https://op.gg)**
+## 3. Package Tambahan yang Diinstal
 
-## Contributing
+* **`laravel/sanctum`:**
+    * Digunakan untuk autentikasi API (login/register/token).
+    * *Catatan instalasi (sudah dilakukan):*
+        1.  `composer require laravel/sanctum`
+        2.  `php artisan vendor:publish --provider="Laravel\Sanctum\SanctumServiceProvider"`
+        3.  `php artisan migrate`
+        4.  Model `User.php` sudah di-update dengan trait `HasApiTokens`.
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+---
 
-## Code of Conduct
+## 4. Rangkuman API Endpoint
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+**Base URL:** `http://127.0.0.1:8000/api`
 
-## Security Vulnerabilities
+> **PENTING:** Semua endpoint (kecuali `/register` dan `/login`) **WAJIB** diamankan. Kirimkan `access_token` (didapat dari Login) sebagai **Bearer Token** di header `Authorization`.
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+---
 
-## License
+### 4.1. Autentikasi (AuthController)
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+| Metode | Endpoint | Deskripsi | Wajib Token? |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/register` | Mendaftarkan user baru. (Body: `name`, `email`, `password`, `password_confirmation`) | **Tidak** |
+| `POST` | `/login` | Login user. (Body: `email`, `password`). Mengembalikan `access_token`. | **Tidak** |
+| `POST` | `/logout` | Logout user (menghapus token saat ini). | **Ya** |
+
+---
+
+### 4.2. Tasks (TaskController)
+
+| Metode | Endpoint | Deskripsi | Wajib Token? |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/tasks` | Mendapat **semua** task milik user (termasuk data kategorinya). | **Ya** |
+| `POST` | `/tasks` | Membuat task baru. (Body: `judul`, `deskripsi` (ops), `deadline` (ops), `category_ids` (ops, array `[1, 2]`)). | **Ya** |
+| `GET` | `/tasks/{id}` | Melihat detail satu task (termasuk data kategorinya). | **Ya** |
+| `PUT` | `/tasks/{id}` | Update satu task. (Body: `judul`, `status_selesai`, `category_ids` (ops, array), dll). | **Ya** |
+| `DELETE`| `/tasks/{id}` | Menghapus satu task. | **Ya** |
+
+---
+
+### 4.3. Categories (CategoryController)
+
+| Metode | Endpoint | Deskripsi | Wajib Token? |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/categories` | Mendapat **semua** kategori milik user. | **Ya** |
+| `POST` | `/categories` | Membuat kategori baru. (Body: `name`). | **Ya** |
+| `GET` | `/categories/{id}` | Melihat detail satu kategori. | **Ya** |
+| `PUT` | `/categories/{id}` | Update satu kategori. (Body: `name`). | **Ya** |
+| `DELETE`| `/categories/{id}` | Menghapus satu kategori. | **Ya** |
+
+---
+
+### 4.4. Dashboard & Kalender (DashboardController)
+
+| Metode | Endpoint | Deskripsi | Wajib Token? |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/dashboard/summary` | Mendapat data ringkasan untuk profile (total, list, charts). | **Ya** |
+| `GET` | `/calendar/tasks` | Mendapat tasks berdasarkan tanggal. (Wajib Params: `?date=YYYY-MM-DD`). | **Ya** |
