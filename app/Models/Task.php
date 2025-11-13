@@ -15,9 +15,23 @@ class Task extends Model
      * @var array<int, string>
      */
     protected $fillable = [
+        'user_id', // <-- 1. TAMBAHKAN INI
         'judul',
         'deskripsi',
         'status_selesai',
         'deadline',
     ];
+
+    /**
+     * Catatan: Mendefinisikan relasi 'milik-satu'.
+     * Satu Task DIMILIKI OLEH satu User.
+     */
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+    public function categories()
+    {
+        return $this->belongsToMany(Category::class, 'category_task');
+    }
 }

@@ -3,18 +3,34 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\TaskController;
-/*
-|--------------------------------------------------------------------------
-| API Routes
-|--------------------------------------------------------------------------
-|
-| Here is where you can register API routes for your application. These
-| routes are loaded by the RouteServiceProvider and all of them will
-| be assigned to the "api" middleware group. Make something great!
-|
-*/
-Route::apiResource('tasks', TaskController::class);
+use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\CategoryController;
+use App\Http\Controllers\Api\DashboardController;
 
-Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-    return $request->user();
+
+/* ... */
+
+// == RUTE PUBLIK ==
+Route::post('/register', [AuthController::class, 'register']);
+Route::post('/login', [AuthController::class, 'login']);
+
+
+// == RUTE YANG DIAMANKAN (WAJIB LOGIN/TOKEN) ==
+Route::middleware('auth:sanctum')->group(function () {
+    
+    // Rute Auth
+    Route::post('/logout', [AuthController::class, 'logout']);
+
+    // Rute Task
+    Route::apiResource('tasks', TaskController::class);
+
+    // Rute Category
+    // Catatan: Menambahkan CRUD API untuk Kategori (milik user)
+    Route::apiResource('categories', CategoryController::class);
+
+    // Catatan: Rute untuk Halaman Profile (Ringkasan)
+    Route::get('/dashboard/summary', [DashboardController::class, 'summary']);
+
+    // Catatan: Rute untuk Halaman Kalender (Tugas per tanggal)
+    Route::get('/calendar/tasks', [DashboardController::class, 'calendarTasks']);
 });
