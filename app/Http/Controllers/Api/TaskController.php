@@ -15,11 +15,11 @@ class TaskController extends Controller
     public function index()
     {
         $user = Auth::user();
-        
-        // Catatan: Tambahkan ->with('categories')
-        // Ini "Eager Loading", memberitahu Laravel
-        // untuk sekalian mengambil data kategori yang terhubung
-        return $user->tasks()->with('categories')->orderBy('created_at', 'desc')->get();
+        // Muat relasi 'categories' DAN 'subtasks' yang baru
+        return $user->tasks() 
+                    ->with(['categories', 'subtasks'])
+                    ->orderBy('created_at', 'desc')
+                    ->get();
     }
 
     /**
@@ -27,16 +27,18 @@ class TaskController extends Controller
      */
     public function store(Request $request)
     {
-        // 1. Validasi (tambahkan 'category_ids' opsional)
+        // 1. Validasi (tambahkan 'subtasks' sebagai array opsional)
         $validatedData = $request->validate([
             'judul' => 'required|string|max:255',
             'deskripsi' => 'nullable|string',
             'deadline' => 'nullable|date',
-            'category_ids' => 'nullable|array', // Menerima array [1, 2, 3]
-            'category_ids.*' => 'integer|exists:categories,id', // Cek tiap ID di array
+            'category_ids' => 'nullable|array',
+            'category_ids.*' => 'integer|exists:categories,id',
+            'subtasks' => 'nullable|array', // <-- 1. Validasi sub-tugas
+            'subtasks.*' => 'string|max:255', // <-- 2. Setiap item adalah string
         ]);
 
-        // 2. Buat task
+        // 2. Buat task UTAMA
         $user = Auth::user();
         $task = $user->tasks()->create([
             'judul' => $validatedData['judul'],
@@ -44,16 +46,21 @@ class TaskController extends Controller
             'deadline' => $validatedData['deadline'] ?? null,
         ]);
 
-        // 3. (BARU) Lampirkan Kategori jika ada
+        // 3. Lampirkan Kategori jika ada
         if (isset($validatedData['category_ids'])) {
-            // 'attach' akan mengisi tabel pivot 'category_task'
             $task->categories()->attach($validatedData['category_ids']);
         }
 
-        // 4. Kembalikan task LENGKAP dengan kategorinya
-        return response()->json($task->load('categories'), 201);
-    }
+        // 4. (BARU) Buat Sub-tugas jika ada
+        if (isset($validatedData['subtasks'])) {
+            foreach ($validatedData['subtasks'] as $subtaskTitle) {
+                $task->subtasks()->create(['title' => $subtaskTitle]);
+            }
+        }
 
+        // 5. Kembalikan task LENGKAP dengan relasinya
+        return response()->json($task->load(['categories', 'subtasks']), 201);
+    }
     /**
      * Menampilkan SATU tugas (dan kategorinya)
      */
@@ -64,7 +71,7 @@ class TaskController extends Controller
         }
 
         // Catatan: Load relasi 'categories' saat menampilkan
-        return $task->load('categories');
+        return $task->load(['categories', 'subtasks']);
     }
 
     /**
@@ -72,39 +79,41 @@ class TaskController extends Controller
      */
     public function update(Request $request, Task $task)
     {
+        // 1. Cek kepemilikan
         if (Auth::id() !== $task->user_id) {
-            return response()->json(['message' => 'Tidak diizinkan'], 403);
+            return response()->json(['message' => 'Tidak diizinkan'], 403); // 403 = Forbidden
         }
 
+        // 2. Validasi data yang masuk
+        //    (Kita perbarui ini)
         $validatedData = $request->validate([
             'judul' => 'string|max:255',
             'deskripsi' => 'nullable|string',
             'deadline' => 'nullable|date',
             'status_selesai' => 'boolean',
+            'is_starred' => 'boolean', // <-- 1. TAMBAHKAN VALIDASI INI
             'category_ids' => 'nullable|array',
             'category_ids.*' => 'integer|exists:categories,id',
         ]);
 
-        // 1. Update data task (pisahkan kategori)
+        // 3. Update data task (pisahkan kategori)
+        //    (Kita perbarui ini)
         $task->update([
             'judul' => $validatedData['judul'] ?? $task->judul,
             'deskripsi' => $validatedData['deskripsi'] ?? $task->deskripsi,
             'deadline' => $validatedData['deadline'] ?? $task->deadline,
             'status_selesai' => $validatedData['status_selesai'] ?? $task->status_selesai,
+            'is_starred' => $validatedData['is_starred'] ?? $task->is_starred, // <-- 2. TAMBAHKAN LOGIKA UPDATE INI
         ]);
 
-        // 2. (BARU) Sinkronkan Kategori
+        // 4. (BARU) Sinkronkan Kategori
         // 'sync' akan: menghapus semua link lama, dan menambah semua link baru.
-        // Jika 'category_ids' tidak dikirim, 'sync' akan menghapus semua link (default)
         if (isset($validatedData['category_ids'])) {
             $task->categories()->sync($validatedData['category_ids']);
-        } else {
-            // Jika user tidak mengirim 'category_ids',
-            // kita anggap tidak ada perubahan (jangan hapus semua kategori)
-            // Biarkan apa adanya.
         }
+        // (Kita hapus 'else' agar tidak mengacaukan kategori jika tidak dikirim)
 
-        return response()->json($task->load('categories'), 200);
+        return response()->json($task->load('categories'), 200); // 200 = OK
     }
 
     /**

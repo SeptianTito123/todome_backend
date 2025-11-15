@@ -19,6 +19,7 @@ class Task extends Model
         'judul',
         'deskripsi',
         'status_selesai',
+        'is_starred',
         'deadline',
     ];
 
@@ -33,5 +34,9 @@ class Task extends Model
     public function categories()
     {
         return $this->belongsToMany(Category::class, 'category_task');
+    }
+    public function subtasks()
+    {
+        return $this->hasMany(Subtask::class);
     }
 }

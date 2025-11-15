@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\TaskController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\SubtaskController;
 
 
 /* ... */
@@ -33,4 +34,13 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Catatan: Rute untuk Halaman Kalender (Tugas per tanggal)
     Route::get('/calendar/tasks', [DashboardController::class, 'calendarTasks']);
+
+    // Rute untuk meng-update subtask (mencentang)
+    Route::put('/subtasks/{subtask}', [SubtaskController::class, 'update']);
+    
+    // Rute untuk MENAMBAH subtask ke task yang ADA
+    Route::post('/tasks/{task}/subtasks', [SubtaskController::class, 'store']);
+
+    // Rute untuk menghapus subtask
+    Route::delete('/subtasks/{subtask}', [SubtaskController::class, 'destroy']);
 });

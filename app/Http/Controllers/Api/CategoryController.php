@@ -15,7 +15,7 @@ class CategoryController extends Controller
     public function index()
     {
         // Ambil semua kategori yang HANYA dimiliki oleh user yg login
-        return Auth::user()->categories()->orderBy('name', 'asc')->get();
+        return Auth::user()->categories()->withCount('tasks')->orderBy('name', 'asc')->get();
     }
 
     /**
