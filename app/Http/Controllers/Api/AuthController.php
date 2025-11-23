@@ -1,12 +1,15 @@
 <?php
 
 namespace App\Http\Controllers\Api;
-
+use Illuminate\Auth\Events\Registered;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash; // Catatan: Dibutuhkan untuk enkripsi password
 use Illuminate\Support\Facades\Auth; // Catatan: Dibutuhkan untuk proses login
 use App\Models\User; // Catatan: Model User untuk membuat user baru
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Auth\Events\Verified;
 
 class AuthController extends Controller
 {
@@ -15,65 +18,131 @@ class AuthController extends Controller
     // ---------------------------------
     public function register(Request $request)
     {
-        // 1. Validasi data yang masuk dari Flutter/Postman
-        $validatedData = $request->validate([
+        $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users', // Wajib unik di tabel users
-            'password' => 'required|string|min:8|confirmed', // 'confirmed' akan mencari 'password_confirmation'
+            'email' => 'required|string|email|max:255|unique:users',
+            'password' => 'required|string|min:8|confirmed',
         ]);
 
-        // 2. Buat user baru di database
-        $user = User::create([
-            'name' => $validatedData['name'],
-            'email' => $validatedData['email'],
-            // Catatan: Password WAJIB di-hash (enkripsi) sebelum disimpan
-            'password' => Hash::make($validatedData['password']),
-        ]);
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 422);
+        }
 
-        // 3. Kembalikan response sukses dalam format JSON
-        return response()->json([
-            'message' => 'User berhasil diregistrasi',
-            'user' => $user,
-        ], 201); // 201 = Created
+        // --- MULAI TRANSAKSI ---
+        DB::beginTransaction();
+
+        try {
+            // 1. Buat User
+            $user = User::create([
+                'name' => $request->name,
+                'email' => $request->email,
+                'password' => Hash::make($request->password),
+            ]);
+
+            // 2. Kirim Email
+            event(new Registered($user));
+
+            // 3. Jika sampai sini aman, Simpan Permanen
+            DB::commit();
+
+            return response()->json(['message' => 'Registrasi berhasil. Silakan cek email untuk verifikasi.'], 201);
+
+        } catch (\Exception $e) {
+            // 4. JIKA ADA ERROR (Misal Email Gagal), BATALKAN SEMUA
+            DB::rollBack();
+            
+            // Kembalikan pesan error asli agar kita tahu kenapa email gagal
+            return response()->json(['message' => 'Gagal Register: ' . $e->getMessage()], 500);
+        }
     }
 
     // ---------------------------------
     // FUNGSI UNTUK LOGIN USER
     // ---------------------------------
     public function login(Request $request)
-    {
-        // 1. Validasi data yang masuk
-        $credentials = $request->validate([
-            'email' => 'required|string|email',
-            'password' => 'required|string',
-        ]);
+        {
+            if (!Auth::attempt($request->only('email', 'password'))) {
+                return response()->json(['message' => 'Email atau Password salah'], 401);
+            }
 
-        // 2. Coba lakukan login (Auth::attempt)
-        // Catatan: Ini otomatis mengecek email dan hash password
-        if (!Auth::attempt($credentials)) {
-            // 3. Jika gagal (email/password salah), kirim error 401
+            $user = User::where('email', $request['email'])->firstOrFail();
+
+            // --- TAMBAHKAN CEK VERIFIKASI ---
+            if (!$user->hasVerifiedEmail()) {
+                return response()->json(['message' => 'Email belum diverifikasi. Cek inbox Anda.'], 403);
+            }
+            // --------------------------------
+
+            $token = $user->createToken('auth_token')->plainTextToken;
+
             return response()->json([
-                'message' => 'Email atau Password salah'
-            ], 401); // 401 = Unauthorized
+                'message' => 'Login berhasil',
+                'user' => $user,
+                'token' => $token,
+            ]);
+        }
+    public function googleLogin(Request $request)
+        {
+            // Validasi
+            $validator = Validator::make($request->all(), [
+                'email' => 'required|email',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json($validator->errors(), 422);
+            }
+
+            // 1. Cek apakah user sudah ada?
+            $user = User::where('email', $request->email)->first();
+
+            if ($user) {
+                // --- SKENARIO A: USER LAMA (LOGIN LANGSUNG) ---
+                $token = $user->createToken('google_auth_token')->plainTextToken;
+
+                return response()->json([
+                    'status' => 'exists', // Penanda untuk Flutter
+                    'message' => 'Login berhasil',
+                    'user' => $user,
+                    'token' => $token,
+                ]);
+            } else {
+                // --- SKENARIO B: USER BARU (MINTA PASSWORD) ---
+                // Kita TIDAK membuat user di sini. Kita suruh Flutter buka form baru.
+                return response()->json([
+                    'status' => 'new_user', // Penanda untuk Flutter
+                    'message' => 'Email belum terdaftar, silakan registrasi.',
+                    'email' => $request->email,
+                    'name' => $request->name // Kembalikan nama dari Google untuk pre-fill
+                ]);
+            }
+        }   
+        
+    // --- FUNGSI BARU: VERIFIKASI EMAIL ---
+    public function verifyEmail(Request $request, $id)
+    {
+        // 1. Cari user berdasarkan ID yang ada di URL
+        $user = User::findOrFail($id);
+
+        // 2. Cek apakah tanda tangan digital (Signature) URL valid?
+        // Agar tidak ada orang iseng nembak URL sembarangan
+        if (!$request->hasValidSignature()) {
+            return response()->json(['message' => 'Link verifikasi tidak valid atau sudah kadaluarsa.'], 403);
         }
 
-        // 4. Jika login berhasil, ambil data user
-        // Catatan: Kita gunakan $request->user() BUKAN Auth::user()
-        // karena kita perlu user dari instance request saat ini
-        $user = $request->user();
+        // 3. Jika user sudah verifikasi sebelumnya
+        if ($user->hasVerifiedEmail()) {
+             return response()->json(['message' => 'Email sudah diverifikasi sebelumnya. Silakan login.']);
+        }
 
-        // 5. Buat Token API (Sanctum)
-        // Catatan: Ini adalah "kunci digital" yang akan disimpan Flutter
-        $token = $user->createToken('auth_token')->plainTextToken;
+        // 4. Verifikasi Email User
+        if ($user->markEmailAsVerified()) {
+            event(new Verified($user));
+        }
 
-        // 6. Kembalikan response sukses (User + Token)
-        return response()->json([
-            'message' => 'Login berhasil',
-            'user' => $user,
-            'access_token' => $token,
-            'token_type' => 'Bearer',
-        ], 200); // 200 = OK
+        // 5. Tampilkan pesan sukses (Ini akan muncul di Browser HP user)
+        return response()->json(['message' => 'Email BERHASIL diverifikasi! Silakan kembali ke aplikasi dan Login.']);
     }
+
     // ---------------------------------
     // FUNGSI UNTUK LOGOUT USER
     // ---------------------------------

@@ -14,6 +14,8 @@ use App\Http\Controllers\Api\SubtaskController;
 // == RUTE PUBLIK ==
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
+Route::post('/auth/google', [AuthController::class, 'googleLogin']);
+Route::get('/email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])->name('verification.verify');
 
 
 // == RUTE YANG DIAMANKAN (WAJIB LOGIN/TOKEN) ==
