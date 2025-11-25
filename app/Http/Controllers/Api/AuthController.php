@@ -10,6 +10,7 @@ use App\Models\User; // Catatan: Model User untuk membuat user baru
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Auth\Events\Verified;
+use Illuminate\Support\Facades\Storage;
 
 class AuthController extends Controller
 {
@@ -159,5 +160,76 @@ class AuthController extends Controller
         return response()->json([
             'message' => 'Berhasil logout'
         ], 200); // 200 = OK
+    }
+
+    // 1. GET PROFILE
+    public function profile(Request $request)
+    {
+        $user = $request->user();
+
+        // Siapkan URL foto lengkap agar bisa diakses Flutter
+        $photoUrl = $user->profile_photo_path 
+            ? asset('storage/' . $user->profile_photo_path) 
+            : null;
+
+        return response()->json([
+            'message' => 'Profil berhasil diambil',
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'bio' => $user->bio, // Kolom baru
+                'photo_url' => $photoUrl, // Kirim URL lengkap
+            ]
+        ], 200);
+    }
+
+    // 2. UPDATE PROFILE
+    public function updateProfile(Request $request)
+    {
+        $user = $request->user();
+
+        // Validasi
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:255',
+            'bio'  => 'nullable|string|max:500',
+            'photo' => 'nullable|image|mimes:jpg,jpeg,png|max:2048', // Max 2MB
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['message' => 'Validasi gagal', 'errors' => $validator->errors()], 422);
+        }
+
+        // Update Text
+        $user->name = $request->name;
+        $user->bio = $request->bio;
+
+        // Update Foto (Jika ada upload baru)
+        if ($request->hasFile('photo')) {
+            // Hapus foto lama jika ada (opsional, biar hemat storage)
+            if ($user->profile_photo_path && Storage::disk('public')->exists($user->profile_photo_path)) {
+                Storage::disk('public')->delete($user->profile_photo_path);
+            }
+
+            // Simpan foto baru
+            $path = $request->file('photo')->store('profile-photos', 'public');
+            $user->profile_photo_path = $path;
+        }
+
+        $user->save();
+
+        // Response Data Baru
+        $photoUrl = $user->profile_photo_path 
+            ? asset('storage/' . $user->profile_photo_path) 
+            : null;
+
+        return response()->json([
+            'message' => 'Profil berhasil diperbarui',
+            'user' => [
+                'name' => $user->name,
+                'bio' => $user->bio,
+                'photo_url' => $photoUrl,
+            ]
+        ], 200);
     }
 }

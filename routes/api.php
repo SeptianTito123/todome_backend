@@ -45,4 +45,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Rute untuk menghapus subtask
     Route::delete('/subtasks/{subtask}', [SubtaskController::class, 'destroy']);
+    Route::get('/profile', [AuthController::class, 'profile']);
+    Route::match(['put', 'post'], '/profile', [AuthController::class, 'updateProfile']);
 });
