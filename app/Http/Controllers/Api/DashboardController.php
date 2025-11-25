@@ -20,19 +20,18 @@ class DashboardController extends Controller
         $now = Carbon::now();
 
         // 1. Hitung Total Tugas
-        $total_selesai = $user->tasks()
-            ->where('status_selesai', 1)
-            ->count();
+        $total_selesai = $user->tasks()->where('status_selesai', true)->count();
 
         $total_belum_selesai = $user->tasks()
             ->where('status_selesai', 0)
             ->count();
 
         $total_tertunda = $user->tasks()
-            ->where('status_selesai', 0)
+            ->where('status_selesai', false)
             ->whereNotNull('deadline')
-            ->whereDate('deadline', '<', now()->toDateString())
+            ->where('deadline', '<', $now)
             ->count();
+        $total_belum_selesai = $user->tasks()->where('status_selesai', false)->count();
 
         // 2. Ambil 5 Tugas Belum Selesai (terbaru)
         $tugas_belum_selesai = $user->tasks()
