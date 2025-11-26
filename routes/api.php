@@ -9,42 +9,56 @@ use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\SubtaskController;
 
 
-/* ... */
-
-// == RUTE PUBLIK ==
+// =======================
+// RUTE PUBLIK
+// =======================
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/auth/google', [AuthController::class, 'googleLogin']);
-Route::get('/email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])->name('verification.verify');
+
+Route::get('/email/verify/{id}/{hash}', 
+    [AuthController::class, 'verifyEmail']
+)->name('verification.verify');
 
 
-// == RUTE YANG DIAMANKAN (WAJIB LOGIN/TOKEN) ==
+// =======================
+// RUTE DILINDUNGI SANCTUM
+// =======================
 Route::middleware('auth:sanctum')->group(function () {
-    
-    // Rute Auth
+
+    // AUTH
     Route::post('/logout', [AuthController::class, 'logout']);
 
-    // Rute Task
+    // TASK (CRUD penuh)
     Route::apiResource('tasks', TaskController::class);
 
-    // Rute Category
-    // Catatan: Menambahkan CRUD API untuk Kategori (milik user)
+    // CATEGORY (CRUD penuh)
     Route::apiResource('categories', CategoryController::class);
 
-    // Catatan: Rute untuk Halaman Profile (Ringkasan)
+    // DASHBOARD SUMMARY
     Route::get('/dashboard/summary', [DashboardController::class, 'summary']);
 
-    // Catatan: Rute untuk Halaman Kalender (Tugas per tanggal)
+    // CALENDAR (task by date)
     Route::get('/calendar/tasks', [DashboardController::class, 'calendarTasks']);
 
-    // Rute untuk meng-update subtask (mencentang)
-    Route::put('/subtasks/{subtask}', [SubtaskController::class, 'update']);
-    
-    // Rute untuk MENAMBAH subtask ke task yang ADA
+    // =======================
+    // SUBTASK ROUTE
+    // =======================
+
+    // Tambah subtask ke task tertentu
     Route::post('/tasks/{task}/subtasks', [SubtaskController::class, 'store']);
 
-    // Rute untuk menghapus subtask
+    // Update subtask (centang/rename)
+    Route::put('/subtasks/{subtask}', [SubtaskController::class, 'update']);
+
+    // Hapus subtask
     Route::delete('/subtasks/{subtask}', [SubtaskController::class, 'destroy']);
+
+
+    // =======================
+    // PROFILE
+    // =======================
     Route::get('/profile', [AuthController::class, 'profile']);
     Route::match(['put', 'post'], '/profile', [AuthController::class, 'updateProfile']);
 });
+    

@@ -83,40 +83,56 @@ class AuthController extends Controller
             ]);
         }
     public function googleLogin(Request $request)
-        {
-            // Validasi
-            $validator = Validator::make($request->all(), [
-                'email' => 'required|email',
+    {
+        // Validasi
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|email',
+            'name'  => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 422);
+        }
+
+        // Cek apakah user sudah ada
+        $user = User::where('email', $request->email)->first();
+
+        if ($user) {
+
+            // Jika belum verified → kita tandai verified otomatis
+            if (!$user->hasVerifiedEmail()) {
+                $user->email_verified_at = now();
+                $user->save();
+            }
+
+            $token = $user->createToken('google_auth_token')->plainTextToken;
+
+            return response()->json([
+                'status' => 'exists',
+                'message' => 'Login berhasil',
+                'user' => $user,
+                'token' => $token,
             ]);
+        }
 
-            if ($validator->fails()) {
-                return response()->json($validator->errors(), 422);
-            }
+        // --- USER BARU → AUTO REGISTER + VERIFIED ---
+        $newUser = User::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => Hash::make(uniqid()), // password random, tidak digunakan
+            'email_verified_at' => now(),       // langsung verified
+        ]);
 
-            // 1. Cek apakah user sudah ada?
-            $user = User::where('email', $request->email)->first();
+        $token = $newUser->createToken('google_auth_token')->plainTextToken;
 
-            if ($user) {
-                // --- SKENARIO A: USER LAMA (LOGIN LANGSUNG) ---
-                $token = $user->createToken('google_auth_token')->plainTextToken;
+        return response()->json([
+            'status' => 'created',
+            'message' => 'Akun Google berhasil dibuat dan login otomatis.',
+            'user' => $newUser,
+            'token' => $token,
+        ]);
+    }
 
-                return response()->json([
-                    'status' => 'exists', // Penanda untuk Flutter
-                    'message' => 'Login berhasil',
-                    'user' => $user,
-                    'token' => $token,
-                ]);
-            } else {
-                // --- SKENARIO B: USER BARU (MINTA PASSWORD) ---
-                // Kita TIDAK membuat user di sini. Kita suruh Flutter buka form baru.
-                return response()->json([
-                    'status' => 'new_user', // Penanda untuk Flutter
-                    'message' => 'Email belum terdaftar, silakan registrasi.',
-                    'email' => $request->email,
-                    'name' => $request->name // Kembalikan nama dari Google untuk pre-fill
-                ]);
-            }
-        }   
         
     // --- FUNGSI BARU: VERIFIKASI EMAIL ---
     public function verifyEmail(Request $request, $id)

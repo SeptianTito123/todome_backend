@@ -3,132 +3,129 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Task;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth; // <-- 1. TAMBAHKAN INI (WAJIB)
+use App\Models\Task;
+use App\Models\Category;
+use App\Models\Subtask;
 
 class TaskController extends Controller
 {
-    /**
-     * Menampilkan SEMUA tugas (HANYA milik user yang login)
-     */
-    public function index()
+    // =========================
+    // GET ALL TASKS
+    // =========================
+    public function index(Request $request)
     {
-        $user = Auth::user();
-        // Muat relasi 'categories' DAN 'subtasks' yang baru
-        return $user->tasks() 
-                    ->with(['categories', 'subtasks'])
-                    ->orderBy('created_at', 'desc')
-                    ->get();
+        $tasks = Task::with(['categories', 'subtasks'])
+            ->where('user_id', $request->user()->id)
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return response()->json($tasks, 200);
     }
 
-    /**
-     * Menyimpan tugas BARU (dan melampirkan kategori)
-     */
+    // =========================
+    // CREATE TASK
+    // =========================
     public function store(Request $request)
     {
-        // 1. Validasi (tambahkan 'subtasks' sebagai array opsional)
-        $validatedData = $request->validate([
+        $request->validate([
             'judul' => 'required|string|max:255',
             'deskripsi' => 'nullable|string',
             'deadline' => 'nullable|date',
             'category_ids' => 'nullable|array',
-            'category_ids.*' => 'integer|exists:categories,id',
-            'subtasks' => 'nullable|array', // <-- 1. Validasi sub-tugas
-            'subtasks.*' => 'string|max:255', // <-- 2. Setiap item adalah string
+            'subtasks' => 'nullable|array',
         ]);
 
-        // 2. Buat task UTAMA
-        $user = Auth::user();
-        $task = $user->tasks()->create([
-            'judul' => $validatedData['judul'],
-            'deskripsi' => $validatedData['deskripsi'] ?? null,
-            'deadline' => $validatedData['deadline'] ?? null,
+        $task = Task::create([
+            'user_id' => $request->user()->id,
+            'judul' => $request->judul,
+            'deskripsi' => $request->deskripsi,
+            'deadline' => $request->deadline,
+            'status_selesai' => false,
+            'is_starred' => false,
         ]);
 
-        // 3. Lampirkan Kategori jika ada
-        if (isset($validatedData['category_ids'])) {
-            $task->categories()->attach($validatedData['category_ids']);
+        // === Attach Categories ===
+        if ($request->category_ids) {
+            $task->categories()->sync($request->category_ids);
         }
 
-        // 4. (BARU) Buat Sub-tugas jika ada
-        if (isset($validatedData['subtasks'])) {
-            foreach ($validatedData['subtasks'] as $subtaskTitle) {
-                $task->subtasks()->create(['title' => $subtaskTitle]);
+        // === Create Subtasks ===
+        if ($request->subtasks) {
+            foreach ($request->subtasks as $title) {
+                Subtask::create([
+                    'task_id' => $task->id,
+                    'title' => $title,
+                    'is_completed' => false,
+                ]);
             }
         }
 
-        // 5. Kembalikan task LENGKAP dengan relasinya
-        return response()->json($task->load(['categories', 'subtasks']), 201);
-    }
-    /**
-     * Menampilkan SATU tugas (dan kategorinya)
-     */
-    public function show(Task $task)
-    {
-        if (Auth::id() !== $task->user_id) {
-            return response()->json(['message' => 'Tidak diizinkan'], 403);
-        }
-
-        // Catatan: Load relasi 'categories' saat menampilkan
-        return $task->load(['categories', 'subtasks']);
+        return response()->json(
+            Task::with(['categories', 'subtasks'])->find($task->id),
+            201
+        );
     }
 
-    /**
-     * Meng-UPDATE tugas (dan kategorinya)
-     */
+    // =========================
+    // UPDATE TASK
+    // =========================
     public function update(Request $request, Task $task)
     {
-        // 1. Cek kepemilikan
-        if (Auth::id() !== $task->user_id) {
-            return response()->json(['message' => 'Tidak diizinkan'], 403); // 403 = Forbidden
+        if ($task->user_id !== $request->user()->id) {
+            return response()->json(['error' => 'Unauthorized'], 403);
         }
 
-        // 2. Validasi data yang masuk
-        //    (Kita perbarui ini)
-        $validatedData = $request->validate([
-            'judul' => 'string|max:255',
-            'deskripsi' => 'nullable|string',
-            'deadline' => 'nullable|date',
-            'status_selesai' => 'boolean',
-            'is_starred' => 'boolean', // <-- 1. TAMBAHKAN VALIDASI INI
-            'category_ids' => 'nullable|array',
-            'category_ids.*' => 'integer|exists:categories,id',
+        $data = $request->only([
+            'judul',
+            'deskripsi',
+            'deadline',
+            'status_selesai',
+            'is_starred'
         ]);
 
-        // 3. Update data task (pisahkan kategori)
-        //    (Kita perbarui ini)
-        $task->update([
-            'judul' => $validatedData['judul'] ?? $task->judul,
-            'deskripsi' => $validatedData['deskripsi'] ?? $task->deskripsi,
-            'deadline' => $validatedData['deadline'] ?? $task->deadline,
-            'status_selesai' => $validatedData['status_selesai'] ?? $task->status_selesai,
-            'is_starred' => $validatedData['is_starred'] ?? $task->is_starred, // <-- 2. TAMBAHKAN LOGIKA UPDATE INI
-        ]);
-
-        // 4. (BARU) Sinkronkan Kategori
-        // 'sync' akan: menghapus semua link lama, dan menambah semua link baru.
-        if (isset($validatedData['category_ids'])) {
-            $task->categories()->sync($validatedData['category_ids']);
+        // Convert boolean/string to integer compatible format
+        if ($request->has('status_selesai')) {
+            $data['status_selesai'] = $request->status_selesai ? 1 : 0;
         }
-        // (Kita hapus 'else' agar tidak mengacaukan kategori jika tidak dikirim)
 
-        return response()->json($task->load('categories'), 200); // 200 = OK
+        if ($request->has('is_starred')) {
+            $data['is_starred'] = $request->is_starred ? 1 : 0;
+        }
+
+        $task->update($data);
+
+        // === Update Categories ===
+        if ($request->has('category_ids')) {
+            $task->categories()->sync($request->category_ids ?? []);
+        }
+
+        // NOTE:
+        // Subtasks TIDAK di-update di sini (ada controller sendiri)
+
+        return response()->json(
+            Task::with(['categories', 'subtasks'])->find($task->id),
+            200
+        );
     }
 
-    /**
-     * Menghapus tugas (dan cek kepemilikan)
-     */
-    public function destroy(Task $task)
+    // =========================
+    // DELETE TASK (Flutter Butuh 204)
+    // =========================
+    public function destroy(Request $request, Task $task)
     {
-        // 1. Cek kepemilikan
-        if (Auth::id() !== $task->user_id) {
-            return response()->json(['message' => 'Tidak diizinkan'], 403); // 403 = Forbidden
+        if ($task->user_id !== $request->user()->id) {
+            return response()->json(['error' => 'Unauthorized'], 403);
         }
 
-        // 2. Hapus task
+        // Delete subtasks dulu
+        $task->subtasks()->delete();
+
+        // Detach categories
+        $task->categories()->detach();
+
         $task->delete();
 
-        return response()->json(null, 204); // 204 = No Content
+        return response(null, 204); // WAJIB 204 — SESUAI ApiService Flutter
     }
 }
