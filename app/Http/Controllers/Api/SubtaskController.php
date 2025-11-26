@@ -1,58 +1,72 @@
 <?php
+
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Subtask;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
+use App\Models\Subtask;
+use App\Models\Task; // ← WAJIB ADA
 
 class SubtaskController extends Controller
 {
+    /**
+     * Menampilkan semua subtask dalam task tertentu
+     */
+    public function index(Task $task)
+    {
+        return response()->json($task->subtasks);
+    }
+
+    /**
+     * Membuat subtask baru untuk task tertentu
+     */
     public function store(Request $request, Task $task)
     {
-        // 1. Cek Kepemilikan (apakah user ini pemilik task induk?)
-        if ($task->user_id !== Auth::id()) {
-            return response()->json(['message' => 'Tidak diizinkan'], 403);
-        }
-
-        // 2. Validasi (hanya butuh judul)
-        $validatedData = $request->validate([
-            'title' => 'required|string|max:255',
+        $validated = $request->validate([
+            'title' => 'required|string|max:255'
         ]);
 
-        // 3. Buat subtask baru
-        $subtask = $task->subtasks()->create($validatedData);
+        $subtask = Subtask::create([
+            'task_id' => $task->id,
+            'title' => $validated['title'],
+            'is_completed' => false,
+        ]);
 
-        return response()->json($subtask, 201); // 201 = Created
+        return response()->json($subtask, 201);
     }
-    // --- Fungsi untuk MENCENTANG sub-tugas ---
+
+    /**
+     * Update status atau title subtask
+     */
     public function update(Request $request, Subtask $subtask)
     {
-        // 1. Cek Kepemilikan (melalui task induknya)
-        if ($subtask->task->user_id !== Auth::id()) {
-            return response()->json(['message' => 'Tidak diizinkan'], 403);
-        }
-
-        // 2. Validasi (hanya boleh update 'is_completed')
-        $validatedData = $request->validate([
-            'is_completed' => 'required|boolean',
+        $validated = $request->validate([
+            'title' => 'nullable|string|max:255',
+            'is_completed' => 'nullable|boolean',
         ]);
 
-        // 3. Update
-        $subtask->update($validatedData);
-        return response()->json($subtask, 200);
-    }
-
-    // --- Fungsi untuk MENGHAPUS sub-tugas ---
-    public function destroy(Subtask $subtask)
-    {
-        // 1. Cek Kepemilikan
-        if ($subtask->task->user_id !== Auth::id()) {
-            return response()->json(['message' => 'Tidak diizinkan'], 403);
+        if (isset($validated['title'])) {
+            $subtask->title = $validated['title'];
         }
 
-        // 2. Hapus
+        if (isset($validated['is_completed'])) {
+            $subtask->is_completed = $validated['is_completed'];
+        }
+
+        $subtask->save();
+
+        return response()->json($subtask);
+    }
+
+    /**
+     * Menghapus subtask
+     */
+    public function destroy(Subtask $subtask)
+    {
         $subtask->delete();
-        return response()->json(null, 204); // 204 = No Content
+
+        return response()->json([
+            'message' => 'Subtask berhasil dihapus'
+        ], 204);
     }
 }

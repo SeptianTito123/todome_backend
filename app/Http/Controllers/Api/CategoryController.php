@@ -3,86 +3,89 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Category; // <-- 1. Tambahkan ini
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth; // <-- 2. Tambahkan ini
+use App\Models\Category;
 
 class CategoryController extends Controller
 {
     /**
-     * Menampilkan SEMUA kategori (milik user yang login)
+     * Tampilkan semua kategori milik user.
      */
-    public function index()
+    public function index(Request $request)
     {
-        // Ambil semua kategori yang HANYA dimiliki oleh user yg login
-        return Auth::user()->categories()->withCount('tasks')->orderBy('name', 'asc')->get();
+        $user = $request->user();
+
+        $categories = Category::where('user_id', $user->id)
+            ->withCount('tasks')  // → otomatis mengisi tasks_count
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return response()->json($categories, 200);
     }
 
     /**
-     * Menyimpan kategori BARU (milik user yang login)
+     * Simpan kategori baru.
      */
     public function store(Request $request)
     {
-        // Validasi (nama wajib, dan unik UNTUK user tsb)
-        $validatedData = $request->validate([
+        $validated = $request->validate([
             'name' => 'required|string|max:255',
         ]);
 
-        // Buat kategori baru MENGGUNAKAN RELASI 'categories()'
-        // Ini otomatis mengisi 'user_id'
-        $category = Auth::user()->categories()->create($validatedData);
+        $category = Category::create([
+            'name' => $validated['name'],
+            'user_id' => $request->user()->id,
+        ]);
 
-        return response()->json($category, 201); // 201 = Created
+        return response()->json($category, 201);
     }
 
     /**
-     * Menampilkan SATU kategori (dan cek kepemilikan)
+     * Tampilkan detail kategori (opsional, jarang dipakai).
      */
-    public function show(Category $category)
+    public function show(Category $category, Request $request)
     {
-        // 1. Cek apakah kategori ini milik user yang sedang login
-        if (Auth::id() !== $category->user_id) {
-            return response()->json(['message' => 'Tidak diizinkan'], 403); // 403 = Forbidden
+        if ($category->user_id !== $request->user()->id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
         }
-        return $category;
+
+        $category->loadCount('tasks');
+        return response()->json($category, 200);
     }
 
     /**
-     * Meng-UPDATE kategori (dan cek kepemilikan)
+     * Update kategori.
      */
     public function update(Request $request, Category $category)
     {
-        // 1. Cek kepemilikan
-        if (Auth::id() !== $category->user_id) {
-            return response()->json(['message' => 'Tidak diizinkan'], 403); // 403 = Forbidden
+        if ($category->user_id !== $request->user()->id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        // 2. Validasi data
-        $validatedData = $request->validate([
+        $validated = $request->validate([
             'name' => 'required|string|max:255',
         ]);
 
-        // 3. Update data
-        $category->update($validatedData);
+        $category->update([
+            'name' => $validated['name'],
+        ]);
 
-        return response()->json($category, 200); // 200 = OK
+        return response()->json($category, 200);
     }
 
     /**
-     * Menghapus kategori (dan cek kepemilikan)
+     * Hapus kategori.
+     * NOTE: Tugas yang memakai kategori ini TIDAK dihapus → hanya relasinya hilang.
      */
-    public function destroy(Category $category)
+    public function destroy(Category $category, Request $request)
     {
-        // 1. Cek kepemilikan
-        if (Auth::id() !== $category->user_id) {
-            return response()->json(['message' => 'Tidak diizinkan'], 403); // 403 = Forbidden
+        if ($category->user_id !== $request->user()->id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        // 2. Hapus kategori
-        // (Relasi di database 'onDelete('cascade')' akan
-        // otomatis menghapus datanya dari tabel pivot 'category_task')
+        $category->tasks()->detach(); // hapus relasi pivot
         $category->delete();
 
-        return response()->json(null, 204); // 204 = No Content
+        return response()->json(null, 204);
     }
 }
