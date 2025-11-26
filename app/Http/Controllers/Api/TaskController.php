@@ -11,7 +11,7 @@ class TaskController extends Controller
     public function index(Request $request)
     {
         return Task::where('user_id', $request->user()->id)
-            ->with(['subtasks', 'category'])
+            ->with(['subtasks', 'categories'])
             ->orderBy('created_at', 'desc')
             ->get();
     }
@@ -19,41 +19,67 @@ class TaskController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'title'       => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'due_date'    => 'nullable|date',
-            'category_id' => 'nullable|exists:categories,id',
+            'judul'          => 'required|string|max:255',
+            'deskripsi'      => 'nullable|string',
+            'deadline'       => 'nullable|date',
+            'status_selesai' => 'nullable|boolean',
+            'is_starred'     => 'nullable|boolean',
+            'category_ids'   => 'array',          // <-- MANY TO MANY
+            'category_ids.*' => 'exists:categories,id',
         ]);
 
         $validated['user_id'] = $request->user()->id;
 
         $task = Task::create($validated);
 
-        return response()->json($task, 201);
+        // ----------- MANY TO MANY CATEGORY ----------
+        if ($request->has('category_ids')) {
+            $task->categories()->sync($request->category_ids);
+        }
+
+        return response()->json($task->load('categories', 'subtasks'), 201);
     }
 
     public function show(Request $request, Task $task)
     {
         $this->authorizeTask($request, $task);
 
-        return $task->load('subtasks', 'category');
+        return $task->load('categories', 'subtasks');
     }
 
     public function update(Request $request, Task $task)
     {
         $this->authorizeTask($request, $task);
 
-        $task->update($request->all());
+        $validated = $request->validate([
+            'judul'          => 'nullable|string|max:255',
+            'deskripsi'      => 'nullable|string',
+            'deadline'       => 'nullable|date',
+            'status_selesai' => 'nullable|boolean',
+            'is_starred'     => 'nullable|boolean',
+            'category_ids'   => 'array',
+            'category_ids.*' => 'exists:categories,id',
+        ]);
+
+        $task->update($validated);
+
+        // Update category pivot
+        if ($request->has('category_ids')) {
+            $task->categories()->sync($request->category_ids);
+        }
 
         return response()->json([
             'message' => 'Task updated',
-            'task' => $task
+            'task' => $task->load('categories', 'subtasks')
         ]);
     }
 
     public function destroy(Request $request, Task $task)
     {
         $this->authorizeTask($request, $task);
+
+        // Hapus join pivot
+        $task->categories()->detach();
 
         $task->delete();
 

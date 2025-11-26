@@ -10,39 +10,64 @@ class CategoryController extends Controller
 {
     public function index(Request $request)
     {
-        return Category::where('user_id', $request->user()->id)->get();
+        return Category::where('user_id', $request->user()->id)
+            ->withCount('tasks')
+            ->orderBy('name')
+            ->get();
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name' => 'required|min:2|max:50'
+            'name' => 'required|string|max:50'
         ]);
 
         $validated['user_id'] = $request->user()->id;
 
-        return Category::create($validated);
+        $category = Category::create($validated);
+
+        return response()->json($category, 201);
+    }
+
+    public function show(Request $request, Category $category)
+    {
+        $this->authorizeCategory($request, $category);
+
+        return $category->load('tasks');
     }
 
     public function update(Request $request, Category $category)
     {
-        if ($category->user_id !== $request->user()->id) {
-            abort(403);
-        }
+        $this->authorizeCategory($request, $category);
 
-        $category->update($request->only(['name']));
+        $validated = $request->validate([
+            'name' => 'required|string|max:50'
+        ]);
 
-        return response()->json(['message' => 'Category updated']);
+        $category->update($validated);
+
+        return response()->json([
+            'message' => 'Category updated',
+            'category' => $category
+        ]);
     }
 
     public function destroy(Request $request, Category $category)
     {
-        if ($category->user_id !== $request->user()->id) {
-            abort(403);
-        }
+        $this->authorizeCategory($request, $category);
+
+        // detach pivot
+        $category->tasks()->detach();
 
         $category->delete();
 
         return response()->json(['message' => 'Category deleted']);
+    }
+
+    private function authorizeCategory(Request $request, Category $category)
+    {
+        if ($category->user_id !== $request->user()->id) {
+            abort(403, 'Unauthorized');
+        }
     }
 }
