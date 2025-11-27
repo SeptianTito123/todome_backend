@@ -18,6 +18,7 @@ class TaskController extends Controller
 
     public function store(Request $request)
     {
+        // 1. Validasi Input
         $validated = $request->validate([
             'judul'          => 'required|string|max:255',
             'deskripsi'      => 'nullable|string',
@@ -26,16 +27,36 @@ class TaskController extends Controller
             'is_starred'     => 'nullable|boolean',
             'category_ids'   => 'array',
             'category_ids.*' => 'exists:categories,id',
+            // Tambahkan validasi untuk subtasks (array string)
+            'subtasks'       => 'nullable|array',
+            'subtasks.*'     => 'string|max:255',
         ]);
 
         $validated['user_id'] = $request->user()->id;
 
+        // 2. Buat Task Utama
         $task = Task::create($validated);
 
+        // 3. Simpan Kategori (Many-to-Many)
         if ($request->has('category_ids')) {
             $task->categories()->sync($request->category_ids);
         }
 
+        // 4. [FIX] Simpan Subtasks (One-to-Many)
+        // Bagian ini yang sebelumnya hilang
+        if ($request->has('subtasks') && is_array($request->subtasks)) {
+            foreach ($request->subtasks as $subtaskTitle) {
+                // Pastikan tidak menyimpan string kosong
+                if (!empty($subtaskTitle)) {
+                    $task->subtasks()->create([
+                        'title' => $subtaskTitle,
+                        'is_completed' => false,
+                    ]);
+                }
+            }
+        }
+
+        // 5. Kembalikan data lengkap dengan relasi
         return response()->json($task->load('categories', 'subtasks'), 201);
     }
 
@@ -66,17 +87,22 @@ class TaskController extends Controller
             $task->categories()->sync($request->category_ids);
         }
 
-        // PERBAIKAN DISINI:
-        // Kembalikan object task langsung (tanpa bungkus "message")
-        // agar Flutter bisa langsung membacanya tanpa error.
         return response()->json($task->load('categories', 'subtasks'));
     }
 
     public function destroy(Request $request, Task $task)
     {
         $this->authorizeTask($request, $task);
+
+        // Hapus relasi pivot kategori
         $task->categories()->detach();
+        
+        // Subtask akan otomatis terhapus jika di database diset ON DELETE CASCADE
+        // Tapi untuk aman, kita bisa hapus manual juga (opsional)
+        $task->subtasks()->delete();
+
         $task->delete();
+
         return response()->json(['message' => 'Task deleted']);
     }
 
