@@ -8,7 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
 use App\Models\User;
-use App\Models\Category; 
+use App\Models\Category;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Auth\Events\Verified;
@@ -28,9 +28,6 @@ class AuthController extends Controller
         }
     }
 
-    // ---------------------------------
-    // FUNGSI UNTUK REGISTER USER BARU
-    // ---------------------------------
     public function register(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -43,38 +40,29 @@ class AuthController extends Controller
             return response()->json($validator->errors(), 422);
         }
 
-        // --- MULAI TRANSAKSI ---
         DB::beginTransaction();
 
         try {
-            // 1. Buat User
             $user = User::create([
                 'name' => $request->name,
                 'email' => $request->email,
                 'password' => Hash::make($request->password),
             ]);
 
-            // 2. [FIX] Buat Kategori Default
             $this->createDefaultCategories($user->id);
 
-            // 3. Kirim Email
             event(new Registered($user));
 
-            // 4. Jika sampai sini aman, Simpan Permanen
             DB::commit();
 
             return response()->json(['message' => 'Registrasi berhasil. Silakan cek email untuk verifikasi.'], 201);
 
         } catch (\Exception $e) {
-            // 5. JIKA ADA ERROR, BATALKAN SEMUA
             DB::rollBack();
             return response()->json(['message' => 'Gagal Register: ' . $e->getMessage()], 500);
         }
     }
 
-    // ---------------------------------
-    // FUNGSI UNTUK LOGIN USER
-    // ---------------------------------
     public function login(Request $request)
     {
         if (!Auth::attempt($request->only('email', 'password'))) {
@@ -83,7 +71,6 @@ class AuthController extends Controller
 
         $user = User::where('email', $request['email'])->firstOrFail();
 
-        // --- CEK VERIFIKASI ---
         if (!$user->hasVerifiedEmail()) {
             return response()->json(['message' => 'Email belum diverifikasi. Cek inbox Anda.'], 403);
         }
@@ -99,7 +86,6 @@ class AuthController extends Controller
 
     public function googleLogin(Request $request)
     {
-        // Validasi
         $validator = Validator::make($request->all(), [
             'email' => 'required|email',
             'name'  => 'required|string',
@@ -109,11 +95,9 @@ class AuthController extends Controller
             return response()->json($validator->errors(), 422);
         }
 
-        // Cek apakah user sudah ada
         $user = User::where('email', $request->email)->first();
 
         if ($user) {
-            // Jika belum verified -> kita tandai verified otomatis
             if (!$user->hasVerifiedEmail()) {
                 $user->email_verified_at = now();
                 $user->save();
@@ -129,15 +113,13 @@ class AuthController extends Controller
             ]);
         }
 
-        // --- USER BARU (GOOGLE) -> AUTO REGISTER + VERIFIED ---
         $newUser = User::create([
             'name' => $request->name,
             'email' => $request->email,
-            'password' => Hash::make(uniqid()), // password random
-            'email_verified_at' => now(),       // langsung verified
+            'password' => Hash::make(uniqid()), 
+            'email_verified_at' => now(), 
         ]);
 
-        // [FIX] Buat Kategori Default untuk user Google baru
         $this->createDefaultCategories($newUser->id);
 
         $token = $newUser->createToken('google_auth_token')->plainTextToken;
@@ -150,27 +132,26 @@ class AuthController extends Controller
         ]);
     }
 
-    // --- VERIFIKASI EMAIL ---
+    // --- BAGIAN INI YANG DIPERBAIKI AGAR MUNCUL HTML ---
     public function verifyEmail(Request $request, $id)
     {
         $user = User::findOrFail($id);
 
         if (!$request->hasValidSignature()) {
-            return response()->json(['message' => 'Link verifikasi tidak valid atau sudah kadaluarsa.'], 403);
+            return response('Link verifikasi tidak valid atau sudah kadaluarsa.', 403);
         }
 
-        if ($user->hasVerifiedEmail()) {
-             return response()->json(['message' => 'Email sudah diverifikasi sebelumnya. Silakan login.']);
+        if (!$user->hasVerifiedEmail()) {
+            if ($user->markEmailAsVerified()) {
+                event(new Verified($user));
+            }
         }
 
-        if ($user->markEmailAsVerified()) {
-            event(new Verified($user));
-        }
-
-        return response()->json(['message' => 'Email BERHASIL diverifikasi! Silakan kembali ke aplikasi dan Login.']);
+        // PERBAIKAN: Memanggil file HTML di resources/views/email/email-verification.blade.php
+        return view('email.email-verification');
     }
+    // ---------------------------------------------------
 
-    // --- LOGOUT ---
     public function logout(Request $request)
     {
         $user = $request->user();
@@ -181,7 +162,6 @@ class AuthController extends Controller
         ], 200);
     }
 
-    // 1. GET PROFILE
     public function profile(Request $request)
     {
         $user = $request->user();
@@ -202,7 +182,6 @@ class AuthController extends Controller
         ], 200);
     }
 
-    // 2. UPDATE PROFILE
     public function updateProfile(Request $request)
     {
         $user = $request->user();
