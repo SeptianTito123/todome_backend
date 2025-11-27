@@ -32,7 +32,6 @@ class CategoryController extends Controller
     public function show(Request $request, Category $category)
     {
         $this->authorizeCategory($request, $category);
-
         return $category->load('tasks');
     }
 
@@ -46,27 +45,21 @@ class CategoryController extends Controller
 
         $category->update($validated);
 
-        return response()->json([
-            'message' => 'Category updated',
-            'category' => $category
-        ]);
+        // PERBAIKAN DISINI:
+        // Kembalikan object category langsung agar konsisten dengan Flutter.
+        return response()->json($category);
     }
 
     public function destroy(Request $request, Category $category)
     {
         $this->authorizeCategory($request, $category);
-
-        // detach pivot
         $category->tasks()->detach();
-
         $category->delete();
-
         return response()->json(['message' => 'Category deleted']);
     }
 
     private function authorizeCategory(Request $request, Category $category)
     {
-        // Perbaikan casting (int) agar tidak eror beda tipe data
         if ((int)$category->user_id !== (int)$request->user()->id) {
             abort(403, 'Unauthorized');
         }
