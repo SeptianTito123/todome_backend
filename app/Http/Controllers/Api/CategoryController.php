@@ -1,73 +1,74 @@
-<?php
+    <?php
 
-namespace App\Http\Controllers\Api;
+    namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
-use App\Models\Category;
-use Illuminate\Http\Request;
+    use App\Http\Controllers\Controller;
+    use App\Models\Category;
+    use Illuminate\Http\Request;
 
-class CategoryController extends Controller
-{
-    public function index(Request $request)
+    class CategoryController extends Controller
     {
-        return Category::where('user_id', $request->user()->id)
-            ->withCount('tasks')
-            ->orderBy('name')
-            ->get();
-    }
+        public function index(Request $request)
+        {
+            return Category::where('user_id', $request->user()->id)
+                ->withCount('tasks')
+                ->orderBy('name')
+                ->get();
+        }
 
-    public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'name' => 'required|string|max:50'
-        ]);
+        public function store(Request $request)
+        {
+            $validated = $request->validate([
+                'name' => 'required|string|max:50'
+            ]);
 
-        $validated['user_id'] = $request->user()->id;
+            $validated['user_id'] = $request->user()->id;
 
-        $category = Category::create($validated);
+            $category = Category::create($validated);
 
-        return response()->json($category, 201);
-    }
+            return response()->json($category, 201);
+        }
 
-    public function show(Request $request, Category $category)
-    {
-        $this->authorizeCategory($request, $category);
+        public function show(Request $request, Category $category)
+        {
+            $this->authorizeCategory($request, $category);
 
-        return $category->load('tasks');
-    }
+            return $category->load('tasks');
+        }
 
-    public function update(Request $request, Category $category)
-    {
-        $this->authorizeCategory($request, $category);
+        public function update(Request $request, Category $category)
+        {
+            $this->authorizeCategory($request, $category);
 
-        $validated = $request->validate([
-            'name' => 'required|string|max:50'
-        ]);
+            $validated = $request->validate([
+                'name' => 'required|string|max:50'
+            ]);
 
-        $category->update($validated);
+            $category->update($validated);
 
-        return response()->json([
-            'message' => 'Category updated',
-            'category' => $category
-        ]);
-    }
+            return response()->json([
+                'message' => 'Category updated',
+                'category' => $category
+            ]);
+        }
 
-    public function destroy(Request $request, Category $category)
-    {
-        $this->authorizeCategory($request, $category);
+        public function destroy(Request $request, Category $category)
+        {
+            $this->authorizeCategory($request, $category);
 
-        // detach pivot
-        $category->tasks()->detach();
+            // detach pivot
+            $category->tasks()->detach();
 
-        $category->delete();
+            $category->delete();
 
-        return response()->json(['message' => 'Category deleted']);
-    }
+            return response()->json(['message' => 'Category deleted']);
+        }
 
-    private function authorizeCategory(Request $request, Category $category)
-    {
-        if ($category->user_id !== $request->user()->id) {
-            abort(403, 'Unauthorized');
+        private function authorizeCategory(Request $request, Category $category)
+        {
+            // PERBAIKAN: Gunakan (int) casting untuk mencegah error tipe data beda
+            if ((int)$category->user_id !== (int)$request->user()->id) {
+                abort(403, 'Unauthorized');
+            }
         }
     }
-}

@@ -86,10 +86,18 @@ class TaskController extends Controller
         return response()->json(['message' => 'Task deleted']);
     }
 
+    /**
+     * PERBAIKAN UTAMA DISINI:
+     * Mengubah pengecekan strict (!==) menjadi casting integer ((int)... !== (int)...)
+     * Ini mengatasi masalah jika Database mengembalikan ID sebagai String.
+     */
     private function authorizeTask(Request $request, Task $task)
     {
-        if ($task->user_id !== $request->user()->id) {
-            abort(403, 'Unauthorized access');
+        if ((int)$task->user_id !== (int)$request->user()->id) {
+            // Debugging (Opsional, akan muncul di storage/logs/laravel.log jika error)
+            // \Log::error("Auth Error: TaskUser: " . $task->user_id . " vs LoginUser: " . $request->user()->id);
+            
+            abort(403, 'Unauthorized access: Anda bukan pemilik tugas ini.');
         }
     }
 }

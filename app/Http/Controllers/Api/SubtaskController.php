@@ -11,7 +11,8 @@ class SubtaskController extends Controller
 {
     public function store(Request $request, Task $task)
     {
-        if ($task->user_id !== $request->user()->id) {
+        // Perbaikan: Konversi ke int
+        if ((int)$task->user_id !== (int)$request->user()->id) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
@@ -25,18 +26,26 @@ class SubtaskController extends Controller
 
     public function update(Request $request, Subtask $subtask)
     {
-        if ($subtask->task->user_id !== $request->user()->id) {
+        // Perbaikan: Konversi ke int
+        if ((int)$subtask->task->user_id !== (int)$request->user()->id) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
-        $subtask->update($request->only(['title', 'is_completed']));
+        // Fix: Pastikan ambil boolean, bukan string "true"/"false"
+        $data = $request->only(['title', 'is_completed']);
+        if ($request->has('is_completed')) {
+            $data['is_completed'] = filter_var($request->is_completed, FILTER_VALIDATE_BOOLEAN);
+        }
+
+        $subtask->update($data);
 
         return response()->json($subtask);
     }
 
     public function destroy(Request $request, Subtask $subtask)
     {
-        if ($subtask->task->user_id !== $request->user()->id) {
+        // Perbaikan: Konversi ke int
+        if ((int)$subtask->task->user_id !== (int)$request->user()->id) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
