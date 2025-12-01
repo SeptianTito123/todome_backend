@@ -2,21 +2,21 @@
 
 namespace App\Http\Controllers\Api;
 
-use Illuminate\Auth\Events\Registered;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
-use App\Models\User;
-use App\Models\Category;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Auth\Events\Verified;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Auth\Events\Registered;
+use Illuminate\Auth\Events\Verified;
+use App\Models\User;
+use App\Models\Category;
 
 class AuthController extends Controller
 {
-    // Helper function untuk membuat kategori default
+    // --- HELPER: BUAT KATEGORI DEFAULT ---
     private function createDefaultCategories($userId)
     {
         $defaultCategories = ['Kuliah', 'Kerja', 'Daily'];
@@ -28,6 +28,7 @@ class AuthController extends Controller
         }
     }
 
+    // --- 1. REGISTER ---
     public function register(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -43,14 +44,17 @@ class AuthController extends Controller
         DB::beginTransaction();
 
         try {
+            // Buat User
             $user = User::create([
                 'name' => $request->name,
                 'email' => $request->email,
                 'password' => Hash::make($request->password),
             ]);
 
+            // Buat Kategori Default
             $this->createDefaultCategories($user->id);
 
+            // Kirim Email Verifikasi
             event(new Registered($user));
 
             DB::commit();
@@ -63,6 +67,7 @@ class AuthController extends Controller
         }
     }
 
+    // --- 2. LOGIN ---
     public function login(Request $request)
     {
         if (!Auth::attempt($request->only('email', 'password'))) {
@@ -71,6 +76,7 @@ class AuthController extends Controller
 
         $user = User::where('email', $request['email'])->firstOrFail();
 
+        // Cek Verifikasi Email
         if (!$user->hasVerifiedEmail()) {
             return response()->json(['message' => 'Email belum diverifikasi. Cek inbox Anda.'], 403);
         }
@@ -84,6 +90,7 @@ class AuthController extends Controller
         ]);
     }
 
+    // --- 3. GOOGLE LOGIN ---
     public function googleLogin(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -95,9 +102,11 @@ class AuthController extends Controller
             return response()->json($validator->errors(), 422);
         }
 
+        // Cek User Existing
         $user = User::where('email', $request->email)->first();
 
         if ($user) {
+            // Auto Verify jika belum
             if (!$user->hasVerifiedEmail()) {
                 $user->email_verified_at = now();
                 $user->save();
@@ -113,31 +122,34 @@ class AuthController extends Controller
             ]);
         }
 
+        // User Baru via Google
         $newUser = User::create([
             'name' => $request->name,
             'email' => $request->email,
-            'password' => Hash::make(uniqid()), 
-            'email_verified_at' => now(), 
+            'password' => Hash::make(uniqid()), // Password random
+            'email_verified_at' => now(),       // Langsung verified
         ]);
 
+        // Buat Kategori Default
         $this->createDefaultCategories($newUser->id);
 
         $token = $newUser->createToken('google_auth_token')->plainTextToken;
 
         return response()->json([
             'status' => 'created',
-            'message' => 'Akun Google berhasil dibuat dan login otomatis.',
+            'message' => 'Akun Google berhasil dibuat.',
             'user' => $newUser,
             'token' => $token,
         ]);
     }
 
-    // --- BAGIAN INI YANG DIPERBAIKI AGAR MUNCUL HTML ---
+    // --- 4. VERIFIKASI EMAIL (KLIK DARI EMAIL) ---
     public function verifyEmail(Request $request, $id)
     {
         $user = User::findOrFail($id);
 
         if (!$request->hasValidSignature()) {
+            // Jika link kadaluarsa/tidak valid
             return response('Link verifikasi tidak valid atau sudah kadaluarsa.', 403);
         }
 
@@ -147,21 +159,22 @@ class AuthController extends Controller
             }
         }
 
-        // PERBAIKAN: Memanggil file HTML di resources/views/email/email-verification.blade.php
+        // Tampilkan halaman HTML cantik
         return view('email.email-verification');
     }
-    // ---------------------------------------------------
 
+    // --- 5. LOGOUT ---
     public function logout(Request $request)
     {
         $user = $request->user();
-        $user->currentAccessToken()->delete();
+        if ($user) {
+            $user->currentAccessToken()->delete();
+        }
 
-        return response()->json([
-            'message' => 'Berhasil logout'
-        ], 200);
+        return response()->json(['message' => 'Berhasil logout'], 200);
     }
 
+    // --- 6. GET PROFILE ---
     public function profile(Request $request)
     {
         $user = $request->user();
@@ -182,6 +195,7 @@ class AuthController extends Controller
         ], 200);
     }
 
+    // --- 7. UPDATE PROFILE ---
     public function updateProfile(Request $request)
     {
         $user = $request->user();
@@ -200,9 +214,11 @@ class AuthController extends Controller
         $user->bio = $request->bio;
 
         if ($request->hasFile('photo')) {
+            // Hapus foto lama jika ada
             if ($user->profile_photo_path && Storage::disk('public')->exists($user->profile_photo_path)) {
                 Storage::disk('public')->delete($user->profile_photo_path);
             }
+            // Simpan foto baru
             $path = $request->file('photo')->store('profile-photos', 'public');
             $user->profile_photo_path = $path;
         }
@@ -221,5 +237,31 @@ class AuthController extends Controller
                 'photo_url' => $photoUrl,
             ]
         ], 200);
+    }
+
+    // --- 8. GANTI PASSWORD (FITUR BARU) ---
+    public function changePassword(Request $request)
+    {
+        $user = $request->user();
+
+        $validator = Validator::make($request->all(), [
+            'current_password' => 'required',
+            'new_password' => 'required|string|min:8|confirmed',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['message' => 'Validasi gagal', 'errors' => $validator->errors()], 422);
+        }
+
+        // Cek apakah password lama benar
+        if (!Hash::check($request->current_password, $user->password)) {
+            return response()->json(['message' => 'Password lama salah'], 400);
+        }
+
+        // Update password
+        $user->password = Hash::make($request->new_password);
+        $user->save();
+
+        return response()->json(['message' => 'Password berhasil diubah'], 200);
     }
 }

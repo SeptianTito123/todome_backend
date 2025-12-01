@@ -27,7 +27,7 @@ class TaskController extends Controller
             'is_starred'     => 'nullable|boolean',
             'category_ids'   => 'array',
             'category_ids.*' => 'exists:categories,id',
-            // Tambahkan validasi untuk subtasks (array string)
+            'recurrence'     => 'nullable|string',
             'subtasks'       => 'nullable|array',
             'subtasks.*'     => 'string|max:255',
         ]);
@@ -77,6 +77,7 @@ class TaskController extends Controller
             'deadline'       => 'nullable|date',
             'status_selesai' => 'nullable|boolean',
             'is_starred'     => 'nullable|boolean',
+            'recurrence'     => 'nullable|string',
             'category_ids'   => 'array',
             'category_ids.*' => 'exists:categories,id',
         ]);

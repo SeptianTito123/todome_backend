@@ -15,12 +15,13 @@ class Task extends Model
      * @var array<int, string>
      */
     protected $fillable = [
-        'user_id', // <-- 1. TAMBAHKAN INI
+        'user_id', 
         'judul',
         'deskripsi',
         'status_selesai',
         'is_starred',
         'deadline',
+        'recurrence',
     ];
 
     /**
