@@ -12,12 +12,13 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('tasks', function (Blueprint $table) {
-            $table->id(); // ID unik untuk setiap tugas
-            $table->string('judul'); // Judul tugas
-            $table->text('deskripsi')->nullable(); // Deskripsi, boleh kosong
-            $table->boolean('status_selesai')->default(false); // Status, default-nya "belum selesai"
-            $table->timestamp('deadline')->nullable(); // Batas waktu, boleh kosong
-            $table->timestamps(); // Otomatis membuat 'created_at' dan 'updated_at'
+            $table->id();
+            $table->string('judul');
+            $table->text('deskripsi')->nullable();
+            $table->boolean('status_selesai')->default(false);
+            $table->timestamp('deadline')->nullable();          
+            $table->string('recurrence')->nullable();
+            $table->timestamps();
         });
     }
 
