@@ -11,29 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Hapus tabel lama jika ada (untuk memastikan bersih)
-        Schema::dropIfExists('tasks');
-
         Schema::create('tasks', function (Blueprint $table) {
-            $table->id();
-            
-            // 1. RELASI USER (WAJIB ADA agar tidak error Auth)
-            $table->foreignId('user_id')->constrained()->onDelete('cascade');
-            
-            $table->string('judul');
-            $table->text('deskripsi')->nullable();
-            
-            $table->boolean('status_selesai')->default(false);
-            
-            // 2. FITUR BINTANG (WAJIB ADA agar tidak error di Flutter)
-            $table->boolean('is_starred')->default(false);
-            
-            $table->timestamp('deadline')->nullable();
-            
-            // 3. FITUR BERULANG (Kolom Baru)
-            $table->string('recurrence')->nullable()->default('none');
-            
-            $table->timestamps();
+            $table->id(); // ID unik untuk setiap tugas
+            $table->string('judul'); // Judul tugas
+            $table->text('deskripsi')->nullable(); // Deskripsi, boleh kosong
+            $table->boolean('status_selesai')->default(false); // Status, default-nya "belum selesai"
+            $table->timestamp('deadline')->nullable(); // Batas waktu, boleh kosong
+            $table->timestamps(); // Otomatis membuat 'created_at' dan 'updated_at'
         });
     }
 
