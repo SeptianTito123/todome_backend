@@ -264,4 +264,18 @@ class AuthController extends Controller
 
         return response()->json(['message' => 'Password berhasil diubah'], 200);
     }
+
+    public function saveFcmToken(Request $request)
+    {
+        $request->validate([
+            'fcm_token' => 'required|string'
+        ]);
+
+        $user = $request->user();
+        $user->update([
+            'fcm_token' => $request->fcm_token
+        ]);
+
+        return response()->json(['message' => 'FCM token saved']);
+    }
 }
