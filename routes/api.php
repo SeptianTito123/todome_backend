@@ -7,7 +7,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\SubtaskController;
-
+use App\Http\Controllers\PushNotificationController;
 
 // =======================
 // RUTE PUBLIK
@@ -63,8 +63,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/change-password', [AuthController::class, 'changePassword']);
 
     Route::post('/save-fcm-token', [AuthController::class, 'saveFcmToken']);
-
+    
 });
+
+Route::post('/send-push-test', [PushNotificationController::class, 'sendTest']);
 
 
     
