@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Task;
 use Illuminate\Http\Request;
+use App\Models\FcmToken;
+
 
 class TaskController extends Controller
 {
@@ -42,11 +44,9 @@ class TaskController extends Controller
             $task->categories()->sync($request->category_ids);
         }
 
-        // 4. [FIX] Simpan Subtasks (One-to-Many)
-        // Bagian ini yang sebelumnya hilang
+        // 4. Simpan Subtasks (One-to-Many)
         if ($request->has('subtasks') && is_array($request->subtasks)) {
             foreach ($request->subtasks as $subtaskTitle) {
-                // Pastikan tidak menyimpan string kosong
                 if (!empty($subtaskTitle)) {
                     $task->subtasks()->create([
                         'title' => $subtaskTitle,
@@ -56,9 +56,40 @@ class TaskController extends Controller
             }
         }
 
-        // 5. Kembalikan data lengkap dengan relasi
+        $fcmToken = \App\Models\FcmToken::where('user_id', $request->user()->id)->value('token');
+
+        if ($fcmToken) {
+            $serverKey = env('FIREBASE_SERVER_KEY'); // dari Firebase Cloud Messaging
+
+            $payload = [
+                "to" => $fcmToken,
+                "notification" => [
+                    "title" => "Tugas Baru Dibuat ✅",
+                    "body"  => $task->judul,
+                    "sound" => "default"
+                ],
+                "data" => [
+                    "task_id" => $task->id
+                ]
+            ];
+
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, "https://fcm.googleapis.com/fcm/send");
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                "Authorization: key=$serverKey",
+                "Content-Type: application/json"
+            ]);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+
+            curl_exec($ch);
+            curl_close($ch);
+        }
+        // 6. Kembalikan data lengkap dengan relasi
         return response()->json($task->load('categories', 'subtasks'), 201);
     }
+
 
     public function show(Request $request, Task $task)
     {
