@@ -65,4 +65,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/save-fcm-token', [AuthController::class, 'saveFcmToken']);
 
 });
+
+
     
