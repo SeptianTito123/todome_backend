@@ -26,34 +26,33 @@ Route::get('/email/verify/{id}/{hash}',
 // =======================
 Route::middleware('auth:sanctum')->group(function () {
 
+    // =======================
     // AUTH
+    // =======================
     Route::post('/logout', [AuthController::class, 'logout']);
 
-    // TASK (CRUD penuh)
+    // =======================
+    // TASK (CRUD)
+    // =======================
     Route::apiResource('tasks', TaskController::class);
 
-    // CATEGORY (CRUD penuh)
+    // =======================
+    // CATEGORY
+    // =======================
     Route::apiResource('categories', CategoryController::class);
 
-    // DASHBOARD SUMMARY
+    // =======================
+    // DASHBOARD
+    // =======================
     Route::get('/dashboard/summary', [DashboardController::class, 'summary']);
-
-    // CALENDAR (task by date)
     Route::get('/calendar/tasks', [DashboardController::class, 'calendarTasks']);
 
     // =======================
-    // SUBTASK ROUTE
+    // SUBTASK
     // =======================
-
-    // Tambah subtask ke task tertentu
     Route::post('/tasks/{task}/subtasks', [SubtaskController::class, 'store']);
-
-    // Update subtask (centang/rename)
     Route::put('/subtasks/{subtask}', [SubtaskController::class, 'update']);
-
-    // Hapus subtask
     Route::delete('/subtasks/{subtask}', [SubtaskController::class, 'destroy']);
-
 
     // =======================
     // PROFILE
@@ -62,11 +61,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::match(['put', 'post'], '/profile', [AuthController::class, 'updateProfile']);
     Route::post('/change-password', [AuthController::class, 'changePassword']);
 
+    // =======================
+    // FCM TOKEN (MULTI DEVICE)
+    // =======================
     Route::post('/save-fcm-token', [AuthController::class, 'saveFcmToken']);
-    
+
+    // =======================
+    // PUSH NOTIFICATION (AMAN)
+    // =======================
+    Route::post('/send-push-test', [PushNotificationController::class, 'sendTest']);
 });
-
-Route::post('/send-push-test', [PushNotificationController::class, 'sendTest']);
-
-
-    
