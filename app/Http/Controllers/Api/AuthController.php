@@ -13,6 +13,7 @@ use Illuminate\Auth\Events\Registered;
 use Illuminate\Auth\Events\Verified;
 use App\Models\User;
 use App\Models\Category;
+use App\Models\FcmToken;
 
 class AuthController extends Controller
 {
@@ -266,16 +267,20 @@ class AuthController extends Controller
     }
 
     public function saveFcmToken(Request $request)
-    {
-        $request->validate([
+{
+    $request->validate([
             'fcm_token' => 'required|string'
         ]);
 
         $user = $request->user();
-        $user->update([
-            'fcm_token' => $request->fcm_token
-        ]);
+
+        // Cegah token duplikat
+        FcmToken::updateOrCreate(
+            ['token' => $request->fcm_token],
+            ['user_id' => $user->id]
+        );
 
         return response()->json(['message' => 'FCM token saved']);
     }
+
 }

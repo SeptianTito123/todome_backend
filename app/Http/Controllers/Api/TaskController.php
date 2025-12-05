@@ -56,35 +56,37 @@ class TaskController extends Controller
             }
         }
 
-        $fcmToken = \App\Models\FcmToken::where('user_id', $request->user()->id)->value('token');
+        $fcmTokens = FcmToken::where('user_id', $request->user()->id)->pluck('token');
 
-        if ($fcmToken) {
-            $serverKey = env('FIREBASE_SERVER_KEY'); // dari Firebase Cloud Messaging
+        if ($fcmTokens->count() > 0) {
+            $serverKey = env('FIREBASE_SERVER_KEY');
 
-            $payload = [
-                "to" => $fcmToken,
-                "notification" => [
-                    "title" => "Tugas Baru Dibuat ✅",
-                    "body"  => $task->judul,
-                    "sound" => "default"
-                ],
-                "data" => [
-                    "task_id" => $task->id
-                ]
-            ];
+            foreach ($fcmTokens as $token) {
+                $payload = [
+                    "to" => $token,
+                    "notification" => [
+                        "title" => "Tugas Baru Dibuat ✅",
+                        "body"  => $task->judul,
+                        "sound" => "default"
+                    ],
+                    "data" => [
+                        "task_id" => $task->id
+                    ]
+                ];
 
-            $ch = curl_init();
-            curl_setopt($ch, CURLOPT_URL, "https://fcm.googleapis.com/fcm/send");
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                "Authorization: key=$serverKey",
-                "Content-Type: application/json"
-            ]);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+                $ch = curl_init();
+                curl_setopt($ch, CURLOPT_URL, "https://fcm.googleapis.com/fcm/send");
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    "Authorization: key=$serverKey",
+                    "Content-Type: application/json"
+                ]);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
 
-            curl_exec($ch);
-            curl_close($ch);
+                curl_exec($ch);
+                curl_close($ch);
+            }
         }
         // 6. Kembalikan data lengkap dengan relasi
         return response()->json($task->load('categories', 'subtasks'), 201);

@@ -21,7 +21,6 @@ class User extends Authenticatable implements MustVerifyEmail
         'name',
         'email',
         'password',
-        'fcm_token',
     ];
 
     /**
@@ -54,5 +53,9 @@ class User extends Authenticatable implements MustVerifyEmail
     public function categories()
     {
         return $this->hasMany(Category::class);
+    }
+    public function fcmTokens()
+    {
+        return $this->hasMany(FcmToken::class);
     }
 }
