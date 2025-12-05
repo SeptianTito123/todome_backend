@@ -21,7 +21,6 @@ class TaskController extends Controller
 
     public function store(Request $request)
     {
-        // 1. Validasi Input
         $validated = $request->validate([
             'judul'          => 'required|string|max:255',
             'deskripsi'      => 'nullable|string',
@@ -37,15 +36,12 @@ class TaskController extends Controller
 
         $validated['user_id'] = $request->user()->id;
 
-        // 2. Buat Task Utama
         $task = Task::create($validated);
 
-        // 3. Simpan Kategori (Many-to-Many)
         if ($request->has('category_ids')) {
             $task->categories()->sync($request->category_ids);
         }
 
-        // 4. Simpan Subtasks (One-to-Many)
         if ($request->has('subtasks') && is_array($request->subtasks)) {
             foreach ($request->subtasks as $subtaskTitle) {
                 if (!empty($subtaskTitle)) {
@@ -57,43 +53,20 @@ class TaskController extends Controller
             }
         }
 
-        // ==========================
-        // ✅ KIRIM NOTIFIKASI (FCM v1)
-        // ==========================
+        // ✅ NOTIF TASK BARU
+        $this->sendNotification(
+            $request->user()->id,
+            "Tugas Baru Dibuat ✅",
+            $task->judul,
+            (string) $task->id
+        );
 
-        $fcmTokens = FcmToken::where('user_id', $request->user()->id)->pluck('token');
-
-        if ($fcmTokens->count() > 0) {
-
-            $accessToken = FirebaseService::getAccessToken();
-            $projectId = env('FIREBASE_PROJECT_ID');
-
-            foreach ($fcmTokens as $token) {
-
-                Http::withToken($accessToken)
-                    ->post("https://fcm.googleapis.com/v1/projects/{$projectId}/messages:send", [
-                        "message" => [
-                            "token" => $token,
-                            "notification" => [
-                                "title" => "Tugas Baru Dibuat ✅",
-                                "body"  => $task->judul,
-                            ],
-                            "data" => [
-                                "task_id" => (string) $task->id
-                            ]
-                        ]
-                    ]);
-            }
-        }
-
-        // 6. Kembalikan data lengkap dengan relasi
         return response()->json($task->load('categories', 'subtasks'), 201);
     }
 
     public function show(Request $request, Task $task)
     {
         $this->authorizeTask($request, $task);
-
         return $task->load('categories', 'subtasks');
     }
 
@@ -112,10 +85,22 @@ class TaskController extends Controller
             'category_ids.*' => 'exists:categories,id',
         ]);
 
+        $statusSebelum = $task->status_selesai;
+
         $task->update($validated);
 
         if ($request->has('category_ids')) {
             $task->categories()->sync($request->category_ids);
+        }
+
+        // ✅ NOTIF JIKA TASK BARU SELESAI
+        if ($statusSebelum == false && $task->status_selesai == true) {
+            $this->sendNotification(
+                $request->user()->id,
+                "Tugas Selesai 🎉",
+                "Tugas '{$task->judul}' telah diselesaikan",
+                (string) $task->id
+            );
         }
 
         return response()->json($task->load('categories', 'subtasks'));
@@ -125,11 +110,50 @@ class TaskController extends Controller
     {
         $this->authorizeTask($request, $task);
 
+        $judulTask = $task->judul;
+
         $task->categories()->detach();
         $task->subtasks()->delete();
         $task->delete();
 
+        // ✅ NOTIF TASK DIHAPUS
+        $this->sendNotification(
+            $request->user()->id,
+            "Tugas Dihapus ❌",
+            "Tugas '{$judulTask}' berhasil dihapus",
+            null
+        );
+
         return response()->json(['message' => 'Task deleted']);
+    }
+
+    // ==========================================
+    // ✅ FUNCTION KIRIM NOTIF FCM v1 (REUSABLE)
+    // ==========================================
+    private function sendNotification($userId, $title, $body, $taskId = null)
+    {
+        $tokens = FcmToken::where('user_id', $userId)->pluck('token');
+
+        if ($tokens->count() == 0) return;
+
+        $accessToken = FirebaseService::getAccessToken();
+        $projectId   = env('FIREBASE_PROJECT_ID');
+
+        foreach ($tokens as $token) {
+            Http::withToken($accessToken)
+                ->post("https://fcm.googleapis.com/v1/projects/{$projectId}/messages:send", [
+                    "message" => [
+                        "token" => $token,
+                        "notification" => [
+                            "title" => $title,
+                            "body"  => $body,
+                        ],
+                        "data" => [
+                            "task_id" => $taskId
+                        ]
+                    ]
+                ]);
+        }
     }
 
     private function authorizeTask(Request $request, Task $task)
