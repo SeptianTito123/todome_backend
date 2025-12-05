@@ -6,7 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Task;
 use Illuminate\Http\Request;
 use App\Models\FcmToken;
-
+use Illuminate\Support\Facades\Http;
+use App\Services\FirebaseService;
 
 class TaskController extends Controller
 {
@@ -56,42 +57,38 @@ class TaskController extends Controller
             }
         }
 
+        // ==========================
+        // ✅ KIRIM NOTIFIKASI (FCM v1)
+        // ==========================
+
         $fcmTokens = FcmToken::where('user_id', $request->user()->id)->pluck('token');
 
         if ($fcmTokens->count() > 0) {
-            $serverKey = env('FIREBASE_SERVER_KEY');
+
+            $accessToken = FirebaseService::getAccessToken();
+            $projectId = env('FIREBASE_PROJECT_ID');
 
             foreach ($fcmTokens as $token) {
-                $payload = [
-                    "to" => $token,
-                    "notification" => [
-                        "title" => "Tugas Baru Dibuat ✅",
-                        "body"  => $task->judul,
-                        "sound" => "default"
-                    ],
-                    "data" => [
-                        "task_id" => $task->id
-                    ]
-                ];
 
-                $ch = curl_init();
-                curl_setopt($ch, CURLOPT_URL, "https://fcm.googleapis.com/fcm/send");
-                curl_setopt($ch, CURLOPT_POST, true);
-                curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                    "Authorization: key=$serverKey",
-                    "Content-Type: application/json"
-                ]);
-                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-
-                curl_exec($ch);
-                curl_close($ch);
+                Http::withToken($accessToken)
+                    ->post("https://fcm.googleapis.com/v1/projects/{$projectId}/messages:send", [
+                        "message" => [
+                            "token" => $token,
+                            "notification" => [
+                                "title" => "Tugas Baru Dibuat ✅",
+                                "body"  => $task->judul,
+                            ],
+                            "data" => [
+                                "task_id" => (string) $task->id
+                            ]
+                        ]
+                    ]);
             }
         }
+
         // 6. Kembalikan data lengkap dengan relasi
         return response()->json($task->load('categories', 'subtasks'), 201);
     }
-
 
     public function show(Request $request, Task $task)
     {
@@ -128,13 +125,8 @@ class TaskController extends Controller
     {
         $this->authorizeTask($request, $task);
 
-        // Hapus relasi pivot kategori
         $task->categories()->detach();
-        
-        // Subtask akan otomatis terhapus jika di database diset ON DELETE CASCADE
-        // Tapi untuk aman, kita bisa hapus manual juga (opsional)
         $task->subtasks()->delete();
-
         $task->delete();
 
         return response()->json(['message' => 'Task deleted']);
