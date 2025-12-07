@@ -23,6 +23,10 @@ class Task extends Model
         'deadline',
         'recurrence',
         'notified_overdue',
+        'reminded_60',
+        'reminded_30',
+        'reminded_15',
+        'reminded_5',
     ];
 
     /**
