@@ -22,6 +22,7 @@ class Task extends Model
         'is_starred',
         'deadline',
         'recurrence',
+        'notified_overdue',
     ];
 
     /**
