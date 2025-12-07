@@ -37,7 +37,7 @@ class SendOverdueTaskNotification extends Command
             $this->info("🔥 Jumlah task overdue: " . $tasks->count());
 
             $accessToken = FirebaseService::getAccessToken();
-            $projectId = env('FIREBASE_PROJECT_ID');
+            $projectId   = env('FIREBASE_PROJECT_ID');
 
             foreach ($tasks as $task) {
 
@@ -46,29 +46,40 @@ class SendOverdueTaskNotification extends Command
                 $tokens = FcmToken::where('user_id', $task->user_id)->pluck('token');
 
                 foreach ($tokens as $token) {
+
                     $response = Http::withToken($accessToken)
                         ->post("https://fcm.googleapis.com/v1/projects/{$projectId}/messages:send", [
                             "message" => [
                                 "token" => $token,
+
+                                // ✅ AUTO MUNCUL WALAU APP MATI
                                 "notification" => [
                                     "title" => "⚠️ Tugas Terlambat!",
                                     "body"  => $task->judul,
                                 ],
+
+                                // ✅ ANDROID PRIORITY HIGH (ANTI DELAY + DOZE)
+                                "android" => [
+                                    "priority" => "HIGH",
+                                    "notification" => [
+                                        "channel_id" => "todome_fcm_alerts",
+                                        "sound" => "default",
+                                    ],
+                                ],
+
+                                // ✅ DATA TAMBAHAN UNTUK FLUTTER
                                 "data" => [
-                                    "type" => "overdue",
-                                    "task_id" => (string) $task->id,
+                                    "type"          => "overdue",
+                                    "task_id"       => (string) $task->id,
                                     "click_action" => "FLUTTER_NOTIFICATION_CLICK"
                                 ],
-                                "android" => [
-                                    "priority" => "HIGH"
-                                ]
                             ]
                         ]);
 
                     $this->info("📨 Response FCM: " . $response->status());
                 }
 
-                // ✅ KUNCI: UPDATE SETELAH BERHASIL KIRIM
+                // ✅ KUNCI ANTI SPAM
                 $task->update([
                     'notified_overdue' => 1
                 ]);
