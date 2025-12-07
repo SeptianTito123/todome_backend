@@ -16,8 +16,10 @@ class SendOverdueTaskNotification extends Command
 
     public function handle()
     {
+        $now = Carbon::now('Asia/Jakarta');
+
         $tasks = Task::whereNotNull('deadline')
-            ->where('deadline', '<', Carbon::now())
+            ->where('deadline', '<', $now)
             ->where('status_selesai', false)
             ->where('notified_overdue', false)
             ->get();
@@ -38,18 +40,26 @@ class SendOverdueTaskNotification extends Command
                     ->post("https://fcm.googleapis.com/v1/projects/{$projectId}/messages:send", [
                         "message" => [
                             "token" => $token,
+
+                            // ✅ INI KUNCI AGAR NOTIF MUNCUL WALAU APP MATI
+                            "android" => [
+                                "priority" => "high",
+                            ],
+
                             "notification" => [
                                 "title" => "⚠️ Tugas Terlambat!",
                                 "body"  => $task->judul,
                             ],
+
                             "data" => [
-                                "task_id" => (string) $task->id
+                                "task_id" => (string) $task->id,
+                                "type"    => "overdue"
                             ]
                         ]
                     ]);
             }
 
-            // ✅ Supaya tidak spam notif terus
+            // ✅ KUNCI ANTI-SPAM
             $task->update(['notified_overdue' => true]);
         }
     }
