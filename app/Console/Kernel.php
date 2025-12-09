@@ -7,18 +7,42 @@ use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 
 class Kernel extends ConsoleKernel
 {
-    /**
-     * Define the application's command schedule.
-     */
     protected function schedule(Schedule $schedule)
     {
-        $schedule->command('task:overdue')->everyMinute();
+        // Task reminder (per menit)
+        $schedule->command('task:reminder')
+            ->everyMinute()
+            ->withoutOverlapping();
+
+        // Task overdue (per menit)
+        $schedule->command('task:overdue')
+            ->everyMinute()
+            ->withoutOverlapping();
+
+        // Notifikasi Daily General – Pagi & Malam
+        $schedule->command('notif:daily-general')
+            ->timezone('Asia/Jakarta')
+            ->dailyAt('07:00')
+            ->withoutOverlapping();
+
+        $schedule->command('notif:daily-general')
+            ->timezone('Asia/Jakarta')
+            ->dailyAt('19:00')
+            ->withoutOverlapping();
+
+        // Notifikasi Daily Overdue – Pagi & Malam
+        $schedule->command('notif:daily-overdue')
+            ->timezone('Asia/Jakarta')
+            ->dailyAt('07:00')
+            ->withoutOverlapping();
+
+        $schedule->command('notif:daily-overdue')
+            ->timezone('Asia/Jakarta')
+            ->dailyAt('19:00')
+            ->withoutOverlapping();
     }
 
-    /**
-     * Register the commands for the application.
-     */
-    protected function commands(): void
+    protected function commands()
     {
         $this->load(__DIR__.'/Commands');
 
